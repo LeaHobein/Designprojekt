@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<title>Live Paket Visualisierung</title>
+<style>
+  body, html { margin: 0; padding: 0; overflow: hidden; background: #000; }
+  canvas { display: block; }
+</style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+
+<script>
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", resize);
+resize();
+
+// Liste aller Striche (Datenpakete)
+const strokes = [];
+
+// Zufällige Farbe generieren
+function randomColor() {
+  const r = Math.floor(Math.random()*256);
+  const g = Math.floor(Math.random()*256);
+  const b = Math.floor(Math.random()*256);
+  return `rgb(${r},${g},${b})`;
+}
+
+// Neue Pakete (Striche) hinzufügen
+function addStroke() {
+  const stroke = {
+    x: 0,
+    y: Math.random() * canvas.height,
+    length: 100 + Math.random()*100,
+    speed: 2 + Math.random()*3,
+    color: randomColor()
+  };
+  strokes.push(stroke);
+}
+
+// WebSocket-Verbindung zum Server aufbauen
+const ws = new WebSocket(`ws://${location.host}`);
+
+ws.onmessage = (event) => {
+  // Wenn ein Paket ankommt, neuen Strich hinzufügen
+  addStroke();
+};
+
+// Animationsloop
+function animate() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  strokes.forEach((stroke, index) => {
+    ctx.strokeStyle = stroke.color;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(stroke.x, stroke.y);
+    ctx.lineTo(stroke.x + stroke.length, stroke.y);
+    ctx.stroke();
+
+    stroke.x += stroke.speed;
+
+    // Wenn der Strich aus dem Bildschirm raus ist, entferne ihn
+    if (stroke.x > canvas.width) {
+      strokes.splice(index, 1);
+    }
+  });
+
+  requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>
