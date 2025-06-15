@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <title>Live Paket Visualisierung</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: Arial, sans-serif;
+    }
+
+    canvas {
+      display: block;
+    }
+
+    #simulate {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      padding: 10px 20px;
+      background: #444;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      z-index: 100;
+    }
+
+    #simulate:hover {
+      background: #666;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+  <button id="simulate">Datenpakete senden</button>
+
+  <script>
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d");
+
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resize);
+    resize();
+
+    const strokes = [];
+
+    function randomColor() {
+      const r = Math.floor(Math.random()*256);
+      const g = Math.floor(Math.random()*256);
+      const b = Math.floor(Math.random()*256);
+      return `rgb(${r},${g},${b})`;
+    }
+
+    function addStroke() {
+      const stroke = {
+        x: 0,
+        y: Math.random() * canvas.height,
+        length: 100 + Math.random()*100,
+        speed: 2 + Math.random()*3,
+        color: randomColor()
+      };
+      strokes.push(stroke);
+    }
+
+    const ws = new WebSocket(`ws://${location.host}`);
+    ws.onmessage = () => {
+      addStroke();
+    };
+
+    function animate() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      strokes.forEach((stroke, index) => {
+        ctx.strokeStyle = stroke.color;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(stroke.x, stroke.y);
+        ctx.lineTo(stroke.x + stroke.length, stroke.y);
+        ctx.stroke();
+
+        stroke.x += stroke.speed;
+
+        if (stroke.x > canvas.width) {
+          strokes.splice(index, 1);
+        }
+      });
+
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+
+    // === Simulation ===
+    document.getElementById("simulate").addEventListener("click", () => {
+      const urls = [
+        "https://example.com",
+        "https://www.wikipedia.org",
+        "https://www.google.com",
+        "https://www.bing.com",
+        "https://www.mozilla.org"
+      ];
+
+      urls.forEach(url => {
+        fetch(url).catch(() => {});
+      });
+
+      for (let i = 0; i < 20; i++) {
+        setTimeout(() => addStroke(), i * 100);
+      }
+    });
+  </script>
+</body>
+</html>
