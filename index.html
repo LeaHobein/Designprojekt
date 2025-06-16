@@ -1,10 +1,14 @@
 <!DOCTYPE html>
 <html lang="de">
+
 <head>
   <meta charset="UTF-8" />
-  <title>Live Paket Visualisierung</title>
+  <title>Live Paket Visualisierung mit p5.js</title>
+  <script src="p5/p5.min.js"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/p5@1.6.0/lib/p5.min.js"></script> -->
   <style>
-    body, html {
+    body,
+    html {
       margin: 0;
       padding: 0;
       overflow: hidden;
@@ -12,9 +16,9 @@
       font-family: Arial, sans-serif;
     }
 
-    canvas {
+    /*canvas {
       display: block;
-    }
+    }*/
 
     #simulate {
       position: absolute;
@@ -35,71 +39,64 @@
     }
   </style>
 </head>
+
 <body>
-  <canvas id="canvas"></canvas>
   <button id="simulate">Datenpakete senden</button>
 
   <script>
-    const canvas = document.getElementById("canvas");
-    const ctx = canvas.getContext("2d");
+    let strokes = [];
 
-    function resize() {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      background(0);
+      strokeWeight(3);
     }
-    window.addEventListener("resize", resize);
-    resize();
 
-    const strokes = [];
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      background(0);
+    }
 
-    function randomColor() {
-      const r = Math.floor(Math.random()*256);
-      const g = Math.floor(Math.random()*256);
-      const b = Math.floor(Math.random()*256);
-      return `rgb(${r},${g},${b})`;
+    function draw() {
+      // Hintergrund mit leichter Transparenz für Nachzieheffekt
+      background(0, 50);
+
+      // Zeichne alle Striche
+      for (let i = strokes.length - 1; i >= 0; i--) {
+        let s = strokes[i];
+        stroke(s.color);
+        line(s.x, s.y, s.x + s.length, s.y);
+        s.x += s.speed;
+
+        if (s.x > width) {
+          strokes.splice(i, 1);
+        }
+      }
     }
 
     function addStroke() {
-      const stroke = {
+      const s = {
         x: 0,
-        y: Math.random() * canvas.height,
-        length: 100 + Math.random()*100,
-        speed: 2 + Math.random()*3,
-        color: randomColor()
+        y: random(height),
+        length: random(100, 200),
+        speed: random(2, 5),
+        color: color(random(255), random(255), random(255))
       };
-      strokes.push(stroke);
+      strokes.push(s);
     }
 
+    // WebSocket-Verbindung (wie in deinem Setup)
     const ws = new WebSocket(`ws://${location.host}`);
     ws.onmessage = () => {
       addStroke();
     };
 
-    function animate() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Simulation per Button
+    const simulateButton = document.getElementById("simulate");
+    simulateButton.addEventListener("click", () => {
+      simulateButton.textContent = "Simulation läuft...";
+      simulateButton.disabled = true;
 
-      strokes.forEach((stroke, index) => {
-        ctx.strokeStyle = stroke.color;
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(stroke.x, stroke.y);
-        ctx.lineTo(stroke.x + stroke.length, stroke.y);
-        ctx.stroke();
-
-        stroke.x += stroke.speed;
-
-        if (stroke.x > canvas.width) {
-          strokes.splice(index, 1);
-        }
-      });
-
-      requestAnimationFrame(animate);
-    }
-
-    animate();
-
-    // === Simulation ===
-    document.getElementById("simulate").addEventListener("click", () => {
       const urls = [
         "https://example.com",
         "https://www.wikipedia.org",
@@ -109,13 +106,21 @@
       ];
 
       urls.forEach(url => {
-        fetch(url).catch(() => {});
+        fetch(url)
+          .then(() => console.log(`Fetched: ${url}`))
+          .catch(() => console.warn(`Failed: ${url}`));
       });
 
       for (let i = 0; i < 20; i++) {
         setTimeout(() => addStroke(), i * 100);
       }
+
+      setTimeout(() => {
+        simulateButton.textContent = "Datenpakete senden";
+        simulateButton.disabled = false;
+      }, 3000);
     });
   </script>
 </body>
+
 </html>
