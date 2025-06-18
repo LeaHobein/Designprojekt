@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -80,3 +81,131 @@ animate();
 </script>
 </body>
 </html>
+=======
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Live Paket Visualisierung mit p5.js</title>
+  <script src="p5/p5.min.js"></script>
+  <!-- <script src="https://cdn.jsdelivr.net/npm/p5@1.6.0/lib/p5.min.js"></script> -->
+  <style>
+    body,
+    html {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: Arial, sans-serif;
+    }
+
+    /*canvas {
+      display: block;
+    }*/
+
+    #simulate {
+      position: absolute;
+      bottom: 20px;
+      left: 20px;
+      padding: 10px 20px;
+      background: #444;
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      cursor: pointer;
+      z-index: 100;
+    }
+
+    #simulate:hover {
+      background: #666;
+    }
+  </style>
+</head>
+
+<body>
+  <button id="simulate">Datenpakete senden</button>
+
+  <script>
+    let strokes = [];
+
+    function setup() {
+      createCanvas(windowWidth, windowHeight);
+      background(0);
+      strokeWeight(3);
+    }
+
+    function windowResized() {
+      resizeCanvas(windowWidth, windowHeight);
+      background(0);
+    }
+
+    function draw() {
+      // Hintergrund mit leichter Transparenz für Nachzieheffekt
+      background(0, 50);
+
+      // Zeichne alle Striche
+      for (let i = strokes.length - 1; i >= 0; i--) {
+        let s = strokes[i];
+        stroke(s.color);
+        line(s.x, s.y, s.x + s.length, s.y);
+        s.x += s.speed;
+
+        if (s.x > width) {
+          strokes.splice(i, 1);
+        }
+      }
+    }
+
+    function addStroke() {
+      const s = {
+        x: 0,
+        y: random(height),
+        length: random(100, 200),
+        speed: random(2, 5),
+        color: color(random(255), random(255), random(255))
+      };
+      strokes.push(s);
+    }
+
+    // WebSocket-Verbindung (wie in deinem Setup)
+    const ws = new WebSocket(`ws://${location.host}`);
+    ws.onmessage = () => {
+      addStroke();
+    };
+
+    // Simulation per Button
+    const simulateButton = document.getElementById("simulate");
+    simulateButton.addEventListener("click", () => {
+      simulateButton.textContent = "Simulation läuft...";
+      simulateButton.disabled = true;
+
+      const urls = [
+        "https://example.com",
+        "https://www.wikipedia.org",
+        "https://www.google.com",
+        "https://www.bing.com",
+        "https://www.mozilla.org"
+      ];
+
+      urls.forEach(url => {
+        fetch(url)
+          .then(() => console.log(`Fetched: ${url}`))
+          .catch(() => console.warn(`Failed: ${url}`));
+      });
+
+      for (let i = 0; i < 20; i++) {
+        setTimeout(() => addStroke(), i * 100);
+      }
+
+      setTimeout(() => {
+        simulateButton.textContent = "Datenpakete senden";
+        simulateButton.disabled = false;
+      }, 3000);
+    });
+  </script>
+</body>
+
+</html>
+>>>>>>> version3
