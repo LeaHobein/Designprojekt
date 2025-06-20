@@ -1,211 +1,118 @@
-<<<<<<< HEAD
+<!-- index.html (Angepasst für Hybrid-Modus) -->
 <!DOCTYPE html>
 <html lang="de">
-<head>
-<meta charset="UTF-8" />
-<title>Live Paket Visualisierung</title>
-<style>
-  body, html { margin: 0; padding: 0; overflow: hidden; background: #000; }
-  canvas { display: block; }
-</style>
-</head>
-<body>
-<canvas id="canvas"></canvas>
-
-<script>
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-window.addEventListener("resize", resize);
-resize();
-
-// Liste aller Striche (Datenpakete)
-const strokes = [];
-
-// Zufällige Farbe generieren
-function randomColor() {
-  const r = Math.floor(Math.random()*256);
-  const g = Math.floor(Math.random()*256);
-  const b = Math.floor(Math.random()*256);
-  return `rgb(${r},${g},${b})`;
-}
-
-// Neue Pakete (Striche) hinzufügen
-function addStroke() {
-  const stroke = {
-    x: 0,
-    y: Math.random() * canvas.height,
-    length: 100 + Math.random()*100,
-    speed: 2 + Math.random()*3,
-    color: randomColor()
-  };
-  strokes.push(stroke);
-}
-
-// WebSocket-Verbindung zum Server aufbauen
-const ws = new WebSocket(`ws://${location.host}`);
-
-ws.onmessage = (event) => {
-  // Wenn ein Paket ankommt, neuen Strich hinzufügen
-  addStroke();
-};
-
-// Animationsloop
-function animate() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  strokes.forEach((stroke, index) => {
-    ctx.strokeStyle = stroke.color;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(stroke.x, stroke.y);
-    ctx.lineTo(stroke.x + stroke.length, stroke.y);
-    ctx.stroke();
-
-    stroke.x += stroke.speed;
-
-    // Wenn der Strich aus dem Bildschirm raus ist, entferne ihn
-    if (stroke.x > canvas.width) {
-      strokes.splice(index, 1);
-    }
-  });
-
-  requestAnimationFrame(animate);
-}
-
-animate();
-</script>
-</body>
-</html>
-=======
-<!DOCTYPE html>
-<html lang="de">
-
 <head>
   <meta charset="UTF-8" />
   <title>Live Paket Visualisierung mit p5.js</title>
-  <script src="p5/p5.min.js"></script>
-  <!-- <script src="https://cdn.jsdelivr.net/npm/p5@1.6.0/lib/p5.min.js"></script> -->
+  <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
   <style>
-    body,
-    html {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background: #000;
-      font-family: Arial, sans-serif;
+    body, html { margin: 0; padding: 0; overflow: hidden; background: #000; }
+    canvas { display: block; }
+    #download-button {
+      position: absolute; bottom: 20px; left: 20px;
+      padding: 12px 24px; background: #007bff; color: #fff;
+      border: none; border-radius: 8px; font-size: 16px;
+      cursor: pointer; z-index: 100;
     }
-
-    /*canvas {
-      display: block;
-    }*/
-
-    #simulate {
-      position: absolute;
-      bottom: 20px;
-      left: 20px;
-      padding: 10px 20px;
-      background: #444;
-      color: #fff;
-      border: none;
-      border-radius: 5px;
-      font-size: 16px;
-      cursor: pointer;
-      z-index: 100;
-    }
-
-    #simulate:hover {
-      background: #666;
-    }
+    #download-button:disabled { background: #555; cursor: not-allowed; }
   </style>
 </head>
-
 <body>
-  <button id="simulate">Datenpakete senden</button>
+  <button id="download-button">Download starten</button>
 
   <script>
-    let strokes = [];
+    document.addEventListener('DOMContentLoaded', function() {
+      if (typeof p5 === 'undefined') {
+        document.body.innerHTML = '<h1 style="color:red;">Fehler: p5.js konnte nicht geladen werden.</h1>';
+        return;
+      }
+      
+      let strokes = [];
 
-    function setup() {
-      createCanvas(windowWidth, windowHeight);
-      background(0);
-      strokeWeight(3);
-    }
+      window.setup = function() {
+        createCanvas(windowWidth, windowHeight);
+        background(0);
+      }
 
-    function windowResized() {
-      resizeCanvas(windowWidth, windowHeight);
-      background(0);
-    }
+      window.windowResized = function() { resizeCanvas(windowWidth, windowHeight); }
 
-    function draw() {
-      // Hintergrund mit leichter Transparenz für Nachzieheffekt
-      background(0, 50);
-
-      // Zeichne alle Striche
-      for (let i = strokes.length - 1; i >= 0; i--) {
-        let s = strokes[i];
-        stroke(s.color);
-        line(s.x, s.y, s.x + s.length, s.y);
-        s.x += s.speed;
-
-        if (s.x > width) {
-          strokes.splice(i, 1);
+      window.draw = function() {
+        background(0, 60); // Hintergrund mit Nachzieheffekt
+        for (let i = strokes.length - 1; i >= 0; i--) {
+          let s = strokes[i];
+          stroke(s.color);
+          strokeWeight(s.weight);
+          line(s.x, s.y, s.x - s.length, s.y);
+          s.x -= s.speed;
+          if (s.x + s.length < 0) { strokes.splice(i, 1); }
         }
       }
-    }
 
-    function addStroke() {
-      const s = {
-        x: 0,
-        y: random(height),
-        length: random(100, 200),
-        speed: random(2, 5),
-        color: color(random(255), random(255), random(255))
-      };
-      strokes.push(s);
-    }
+      // Funktion zum Hinzufügen einer Linie, jetzt mit Typ-Unterscheidung
+      function addStroke(type) {
+        let s;
+        if (type === 'download') {
+          // Download-Pakete: Helle, schnelle, dicke Linien
+          s = {
+            x: width + 50, y: random(height), length: random(150, 300),
+            speed: random(8, 15),
+            color: color(random(80, 200), random(50, 150), 255, 200),
+            weight: 3
+          };
+        } else {
+          // tshark-Pakete (Hintergrund): Dunklere, langsamere
+         s = {
+  x: width + 50,
+  y: random(height),
+  length: random(80, 180), // etwas länger als vorher
+  speed: random(3, 5),
+  color: color(
+    random(100, 255), // bunteres Spektrum
+    random(100, 255),
+    random(100, 255),
+    200 // kräftiger, aber nicht zu grell
+  ),
+  weight: 2.5 // ggf. etwas dünner als Download
+};
 
-    // WebSocket-Verbindung (wie in deinem Setup)
-    const ws = new WebSocket(`ws://${location.host}`);
-    ws.onmessage = () => {
-      addStroke();
-    };
-
-    // Simulation per Button
-    const simulateButton = document.getElementById("simulate");
-    simulateButton.addEventListener("click", () => {
-      simulateButton.textContent = "Simulation läuft...";
-      simulateButton.disabled = true;
-
-      const urls = [
-        "https://example.com",
-        "https://www.wikipedia.org",
-        "https://www.google.com",
-        "https://www.bing.com",
-        "https://www.mozilla.org"
-      ];
-
-      urls.forEach(url => {
-        fetch(url)
-          .then(() => console.log(`Fetched: ${url}`))
-          .catch(() => console.warn(`Failed: ${url}`));
-      });
-
-      for (let i = 0; i < 20; i++) {
-        setTimeout(() => addStroke(), i * 100);
+        }
+        strokes.push(s);
+      }
+      
+      function startDownloadAction() {
+        const button = document.getElementById("download-button");
+        if(button.disabled) return;
+        button.textContent = "Download läuft...";
+        button.disabled = true;
+        window.location.href = '/start-download';
+        setTimeout(() => {
+          button.textContent = "Download erneut starten";
+          button.disabled = false;
+        }, 20000);
       }
 
-      setTimeout(() => {
-        simulateButton.textContent = "Datenpakete senden";
-        simulateButton.disabled = false;
-      }, 3000);
+      document.getElementById("download-button").addEventListener("click", startDownloadAction);
+
+      const ws = new WebSocket('ws://localhost:3000');
+      
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          
+          if (msg.type === 'START_DOWNLOAD') {
+            startDownloadAction();
+          } else if (msg.type === 'tshark-packet') {
+            addStroke('tshark'); // Hintergrundpaket
+          } else if (msg.type === 'download-packet') {
+            addStroke('download'); // Download-Paket
+          }
+        } catch(e) {
+          // Einfache Nachrichten vom alten Server ignorieren
+        }
+      };
+
+      ws.onopen = () => console.log("STATUS: WebSocket-Verbindung ist offen.");
     });
   </script>
 </body>
-
 </html>
->>>>>>> version3

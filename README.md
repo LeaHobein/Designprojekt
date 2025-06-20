@@ -6,15 +6,13 @@ Voraussetzungen:
 - Node.js
 
 
-1. Der Pfad wo tshark installiert ist soll kopiert werden
-2. Dann bei CMD folgendes eingeben: "PFAD WO TSHARK INSTALLIERT IST" -D 
-(-> MIT Gänsefüßchen) und dann ENTER-Taste drücken
-3. Es erscheint eine Liste in der Konsole
-4. Womit ist der PC mit dem Internet verbunden? (LAN oder WLAN)
-5. Dann die Zahl von z.B. WLAN merken -> z.B. "4." (es ist immer
-die vordere Zahl, also die Auflistung, gemeint)
-6. Im Server.js wird dann die Zahl hier eingegeben:
-const interfaceId = "4";
-7. Zum Starten dann start.bat als Admin öffnen
-8. Im Browser http://localhost:3000 einfügen
+Notes/Changes: 
+- package.json Inhalt hat sich verändert
+- start.bat wird nicht mehr benötigt
+- Visualierung sieht etwas anders aus, aber ist noch nicht die finale Version
+- mit einem angeschlossenem Arduino und Knopf kann ein Download gestartet werden, muss aber manuell wieder beendet werden
+- Interface-Nr. muss manuell geändert werden
+- in dem Geräte-Manager sieht man welcher Anschluss (COM) der Arduino ist, muss dann in server.js selbst geändert werden
+- am PC (LAN) hatte ich im Hintergrund viel Datenverkehr, aber im WLAN irgendwie nicht so, vllt. kann das einfach behoben werden, indem ein anderer Download im Hintergrund läuft bei der Präsentation
+- https://ash-speed.hetzner.com Seite für Testfile-downloads
 
