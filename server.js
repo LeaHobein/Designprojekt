@@ -113,32 +113,75 @@ function startTshark(interfaceId) {
   });
 }
 
-// --- Funktion zum Finden des tshark-Interfaces (FINALE MANUELLE VERSION) ---
+// --- Funktion zum Finden des tshark-Interfaces (AUTOMATISCH) ---
+function findWifiInterfaceId(callback) {
+  exec('"C:\\Program Files\\Wireshark\\tshark.exe" -D', (error, stdout, stderr) => {
+    if (error) {
+      console.error('Fehler beim Ausführen von tshark -D:', error);
+      callback(null);
+      return;
+    }
+    // Jede Zeile sieht etwa so aus: 4.\tIntel(R) Wi-Fi 6 AX201 160MHz (\Device\NPF_{...})
+    const lines = stdout.split('\n');
+    for (const line of lines) {
+      if (/wi-?fi|wireless/i.test(line)) {
+        // Extrahiere die Interface-ID (Nummer vor dem Punkt)
+        const match = line.match(/^(\d+)\./);
+        if (match) {
+          const id = match[1];
+          console.log(`Gefundenes WiFi-Interface: ${id} -> ${line.trim()}`);
+          callback(id);
+          return;
+        }
+      }
+    }
+    console.warn('Kein WiFi-Interface gefunden! Fallback auf Interface 4.');
+    callback('4'); // Fallback
+  });
+}
+
+// --- Funktion zum Finden und Starten von tshark auf WiFi ---
 function findAndStartTshark() {
-  // Wir haben herausgefunden, dass das richtige Interface die Nummer 4 ist.
-  // Wir tragen diese Nummer hier fest ein, um alle Erkennungsfehler zu umgehen.
-  const INTERFACE_ID = '4'; 
-  
-  console.log(`Starte tshark auf dem manuell festgelegten Interface: ${INTERFACE_ID}`);
-  console.log("Falls dies nicht funktioniert, starte das Skript neu und prüfe die Nummer mit 'tshark -D' in der Kommandozeile.");
-  
-  startTshark(INTERFACE_ID);
+  findWifiInterfaceId((INTERFACE_ID) => {
+    if (!INTERFACE_ID) {
+      console.error('Konnte keine Interface-ID für WiFi finden.');
+      return;
+    }
+    console.log(`Starte tshark auf Interface: ${INTERFACE_ID}`);
+    startTshark(INTERFACE_ID);
+  });
 }
 
 // --- Arduino Logik ---
-try {
-  const arduinoPort = new SerialPort({ path: 'COM5', baudRate: 9600 });
-  const parser = arduinoPort.pipe(new ReadlineParser({ delimiter: '\r\n' }));
-  console.log("Lausche auf Arduino an COM5...");
-  parser.on('data', data => {
-    if (data.trim() === 'KLICK') {
-      console.log('Arduino-Klick erkannt! Sende Startsignal...');
-      broadcast(JSON.stringify({ type: 'START_DOWNLOAD' }));
+function findArduinoPortAndListen() {
+  const { SerialPort } = require('serialport');
+  SerialPort.list().then(ports => {
+    console.log('Gefundene serielle Ports:', ports.map(p => `${p.path} (${p.manufacturer || ''} ${p.friendlyName || ''})`).join(', '));
+    // Try to find a port that looks like an Arduino or generic USB serial
+    const arduinoPortInfo = ports.find(port => {
+      const str = `${port.manufacturer || ''} ${port.productId || ''} ${port.path || ''} ${port.friendlyName || ''} ${port.vendorId || ''}`.toLowerCase();
+      return str.includes('arduino') || str.includes('ch340') || str.includes('usb-serial') || str.includes('usb serial');
+    });
+    if (!arduinoPortInfo) {
+      console.warn('WARNUNG: Kein Arduino- oder USB-Serial-Port automatisch gefunden. Bitte prüfen Sie die Verkabelung.');
+      return;
     }
+    const portPath = arduinoPortInfo.path;
+    const arduinoPort = new SerialPort({ path: portPath, baudRate: 9600 });
+    const parser = arduinoPort.pipe(new ReadlineParser({ delimiter: '\r\n' }));
+    console.log(`Lausche auf Arduino an ${portPath}...`);
+    parser.on('data', data => {
+      if (data.trim() === 'KLICK') {
+        console.log('Arduino-Klick erkannt! Sende Startsignal...');
+        broadcast(JSON.stringify({ type: 'START_DOWNLOAD' }));
+      }
+    });
+  }).catch(err => {
+    console.warn('WARNUNG: Fehler beim Suchen nach Arduino-Ports:', err);
   });
-} catch (err) {
-  console.warn("WARNUNG: Arduino-Port COM5 nicht gefunden.");
 }
+
+findArduinoPortAndListen();
 
 // --- Serverstart ---
 server.listen(3000, () => {
