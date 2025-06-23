@@ -1,4 +1,4 @@
-<!-- index.html (Angepasst für Hybrid-Modus) -->
+<!-- index.html (Angepasst für Download von oben) -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -32,49 +32,84 @@
       window.setup = function() {
         createCanvas(windowWidth, windowHeight);
         background(0);
+        angleMode(RADIANS);
       }
 
       window.windowResized = function() { resizeCanvas(windowWidth, windowHeight); }
 
       window.draw = function() {
-        background(0, 60); // Hintergrund mit Nachzieheffekt
+        background(0, 60);
+
         for (let i = strokes.length - 1; i >= 0; i--) {
           let s = strokes[i];
-          stroke(s.color);
+          
+          s.x += s.vx;
+          s.y += s.vy;
+
           strokeWeight(s.weight);
-          line(s.x, s.y, s.x - s.length, s.y);
-          s.x -= s.speed;
-          if (s.x + s.length < 0) { strokes.splice(i, 1); }
+
+          const magnitude = sqrt(s.vx * s.vx + s.vy * s.vy);
+          const tailX = s.x - (s.vx / magnitude) * s.length;
+          const tailY = s.y - (s.vy / magnitude) * s.length;
+
+          const splitPointX = s.x * 0.2 + tailX * 0.8;
+          const splitPointY = s.y * 0.2 + tailY * 0.8;
+
+          stroke(s.color1);
+          line(s.x, s.y, splitPointX, splitPointY);
+
+          stroke(s.color2);
+          line(splitPointX, splitPointY, tailX, tailY);
+          
+          // Entferne die Linie, wenn sie den Bildschirm verlässt (oben, unten, links oder rechts)
+          if (s.y < -s.length || s.y > height + s.length || s.x < -s.length || s.x > width + s.length) { 
+            strokes.splice(i, 1); 
+          }
         }
       }
 
-      // Funktion zum Hinzufügen einer Linie, jetzt mit Typ-Unterscheidung
+      // Funktion zum Hinzufügen einer Linie, angepasst für die neue Logik
       function addStroke(type) {
         let s;
+
         if (type === 'download') {
-          // Download-Pakete: Helle, schnelle, dicke Linien
+          // Download-Striche: Starten oben verteilt und bewegen sich zum Zielpunkt unten mitte
+          const speed = random(7, 10);
+          const startX = random(width);
+          const startY = 0;
+          const targetX = width / 2;
+          const targetY = height;
+          
+          // Winkel zum Zielpunkt berechnen
+          const angle = atan2(targetY - startY, targetX - startX);
+
           s = {
-            x: width + 50, y: random(height), length: random(150, 300),
-            speed: random(8, 15),
-            color: color(random(80, 200), random(50, 150), 255, 200),
-            weight: 3
+            type: 'download',
+            x: startX,
+            y: startY,
+            vx: cos(angle) * speed,
+            vy: sin(angle) * speed,
+            length: random(15, 30),
+            color1: color(random(80, 200), random(50, 150), 255, 200),
+            color2: color(random(50, 150), random(30, 100), 230, 220),
+            weight: 5
           };
         } else {
-          // tshark-Pakete (Hintergrund): Dunklere, langsamere
-         s = {
-  x: width + 50,
-  y: random(height),
-  length: random(80, 180), // etwas länger als vorher
-  speed: random(3, 5),
-  color: color(
-    random(100, 255), // bunteres Spektrum
-    random(100, 255),
-    random(100, 255),
-    200 // kräftiger, aber nicht zu grell
-  ),
-  weight: 2.5 // ggf. etwas dünner als Download
-};
+          // Tshark-Striche: Behalten ihre alte Logik bei (Start unten mitte, Flug nach oben)
+          const speed = random(3, 6);
+          const angle = random(-PI * 0.8, -PI * 0.2); // Nach oben gerichteter Winkel
 
+          s = {
+            type: 'tshark',
+            x: width / 2,
+            y: height,
+            vx: cos(angle) * speed,
+            vy: sin(angle) * speed,
+            length: random(20, 40),
+            color1: color(random(100, 255), random(100, 255), random(100, 255), 200),
+            color2: color(random(100, 255), random(100, 255), random(100, 255), 220),
+            weight: 10
+          };
         }
         strokes.push(s);
       }
@@ -102,12 +137,12 @@
           if (msg.type === 'START_DOWNLOAD') {
             startDownloadAction();
           } else if (msg.type === 'tshark-packet') {
-            addStroke('tshark'); // Hintergrundpaket
+            addStroke('tshark');
           } else if (msg.type === 'download-packet') {
-            addStroke('download'); // Download-Paket
+            addStroke('download');
           }
         } catch(e) {
-          // Einfache Nachrichten vom alten Server ignorieren
+          // Ignoriere Nachrichten, die kein valides JSON sind
         }
       };
 
