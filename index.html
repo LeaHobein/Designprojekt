@@ -98,6 +98,18 @@
             }
             nodeCounter += nodesInCurrentRow;
         }
+
+        // --- HINZUGEFÜGT: Zusätzliche Linie von unten zur Mitte ---
+        const bottomNode = networkNodes.find(n => n.r === TRI_ROWS);
+        // Die Reihe mit 3 Knoten (r=7) hat einen zentralen Knoten
+        const targetRow = networkNodes.filter(n => n.r === TRI_ROWS - 2); 
+        if (bottomNode && targetRow.length > 0) {
+            // Finde den mittleren Knoten in der Zielreihe
+            const middleNodeAbove = targetRow[Math.floor(targetRow.length / 2)];
+            if (middleNodeAbove) {
+                 networkEdges.push({ a: bottomNode, b: middleNodeAbove });
+            }
+        }
         
         const infoDiv = document.getElementById('network-info');
         if (infoDiv) infoDiv.textContent = `Netzwerk-Reihen: ${totalRows}`;
