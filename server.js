@@ -24,7 +24,7 @@ const server = http.createServer((req, res) => {
   // Route für den Download (wird von der Webseite aufgerufen)
   else if (req.url === '/start-download') {
     console.log('Download-Anfrage erhalten. Starte den Download-Stream...');
-    const fileUrl = 'https://ash-speed.hetzner.com/10GB.bin';
+    const fileUrl = 'https://ash-speed.hetzner.com/1GB.bin';
     
     // **ANPASSUNG**: Wir holen uns das `request`-Objekt, um den Download bei Bedarf abbrechen zu können.
     const request = https.get(fileUrl, (downloadStream) => {
@@ -36,7 +36,7 @@ const server = http.createServer((req, res) => {
       
       res.writeHead(200, {
         'Content-Type': 'application/octet-stream',
-        'Content-Disposition': 'attachment; filename="10GB-testfile.bin"',
+        'Content-Disposition': 'attachment; filename="1GB-testfile.bin"',
       });
 
       // Für jedes ankommende Datenpaket...
@@ -121,9 +121,9 @@ function findAndStartTshark() {
 
   //Kristina: INTERFACE_ID = '4'; path: 'COM5',
   //Lea: INTERFACE_ID = '5'; path: 'COM4',
-  //Krystyna:
+  //Krystyna: INTERFACE_ID = '5'; path: 'COM5',
 
-  const INTERFACE_ID = '4'; 
+  const INTERFACE_ID = '5'; 
 
   console.log(`Starte tshark auf dem manuell festgelegten Interface: ${INTERFACE_ID}`);
   console.log("Falls dies nicht funktioniert, starte das Skript neu und prüfe die Nummer mit 'tshark -D' in der Kommandozeile.");
