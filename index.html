@@ -1,4 +1,4 @@
-<!-- index.html (Optimiert mit neuen seitlichen Armen) -->
+<!-- index.html (Optimiert mit mehr Zufälligkeit) -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -31,38 +31,41 @@
       let pathStrokes = [];
       let networkNodes = [];
       let networkEdges = [];
-      let TRI_ROWS = 10;
+      let TRI_ROWS = 9; // Ergibt 10 Reihen
 
       let lastDownloadStrokeTime = 0;
       const downloadStrokeInterval = 30; 
 
       /**
-       * Erstellt ein breites, semi-organisches Netzwerk mit seitlichen Armen.
+       * Erstellt das finale Netzwerk: 10 Reihen, die unten breiter werden, um den Bildschirm zu füllen.
        */
-      function createTriangularNetwork() {
+      function createFinalNetwork() {
         networkNodes = [];
         networkEdges = [];
-        TRI_ROWS = constrain(Math.round(height / 70), 7, 18);
         let totalRows = TRI_ROWS + 1;
-        let yTop = -height / (TRI_ROWS - 1);
+        let yTop = -height / (TRI_ROWS);
         let yBottom = height; 
 
-        // Hauptnetzwerk erstellen
+        // Hauptnetzwerk erstellen (von oben nach unten)
         for (let r = 0; r < totalRows; r++) {
           let t = r / (totalRows - 1);
           let y = lerp(yTop, yBottom, t);
           let nodesInRow = (totalRows - r);
           
-          let triangleWidth = width * 0.95; 
-          let rowWidth = triangleWidth * (nodesInRow / totalRows);
+          let maxWidth = width * 1.1; 
+          let scaleFactor = (nodesInRow - 1) / (totalRows - 1);
+          let curvedScale = pow(scaleFactor, 0.6); 
+          let rowWidth = maxWidth * curvedScale;
+
           let xStart = width / 2 - rowWidth / 2;
           let xStep = (nodesInRow > 1) ? rowWidth / (nodesInRow - 1) : 0;
           
           for (let c = 0; c < nodesInRow; c++) {
             let baseX = (nodesInRow === 1) ? width / 2 : xStart + c * xStep;
             
-            let xRandomness = (r === 0 || r === totalRows - 1) ? 0 : random(-width * 0.02, width * 0.02);
-            let yRandomness = (r === 0 || r === totalRows - 1) ? 0 : random(-height * 0.01, height * 0.01);
+            // --- ANPASSUNG: Erhöhte Zufälligkeit für Abstände und Winkel ---
+            let xRandomness = (r > 0 && r < totalRows - 1) ? random(-width * 0.05, width * 0.05) : 0;
+            let yRandomness = (r > 0 && r < totalRows - 1) ? random(-height * 0.04, height * 0.04) : 0;
 
             networkNodes.push({ 
               x: baseX + xRandomness, 
@@ -95,52 +98,7 @@
             }
             nodeCounter += nodesInCurrentRow;
         }
-
-        // --- NEU: Gezielte Arme nach links und rechts oben ---
         
-        // 1. Alle Randknoten sammeln
-        const leftEdgeNodes = [];
-        const rightEdgeNodes = [];
-        let tempNodeCounter = 0;
-        for (let r = 0; r < totalRows; r++) {
-          const nodesInRow = totalRows - r;
-          if (nodesInRow > 0) {
-            leftEdgeNodes.push(networkNodes[tempNodeCounter]);
-            if (nodesInRow > 1) {
-              rightEdgeNodes.push(networkNodes[tempNodeCounter + nodesInRow - 1]);
-            }
-          }
-          tempNodeCounter += nodesInRow;
-        }
-
-        // 2. Randknoten von unten nach oben sortieren
-        leftEdgeNodes.sort((a, b) => b.y - a.y);
-        rightEdgeNodes.sort((a, b) => b.y - a.y);
-
-        // 3. Arme für die rechte Seite erstellen (beginnend beim 3. Knoten von unten)
-        for (let i = 2; i < rightEdgeNodes.length; i++) {
-          const originNode = rightEdgeNodes[i];
-          const targetNode = {
-            x: width,
-            y: originNode.y - random(height * 0.1, height * 0.4), // Ziel schräg nach oben
-            r: -1, c: -1 // Markierung als externer Knoten
-          };
-          networkNodes.push(targetNode);
-          networkEdges.push({ a: originNode, b: targetNode });
-        }
-
-        // 4. Arme für die linke Seite erstellen (beginnend beim 2. Knoten von unten)
-        for (let i = 1; i < leftEdgeNodes.length; i++) {
-          const originNode = leftEdgeNodes[i];
-          const targetNode = {
-            x: 0,
-            y: originNode.y - random(height * 0.1, height * 0.4), // Ziel schräg nach oben
-            r: -1, c: -1 // Markierung als externer Knoten
-          };
-          networkNodes.push(targetNode);
-          networkEdges.push({ a: originNode, b: targetNode });
-        }
-
         const infoDiv = document.getElementById('network-info');
         if (infoDiv) infoDiv.textContent = `Netzwerk-Reihen: ${totalRows}`;
       }
@@ -162,12 +120,12 @@
         createCanvas(windowWidth, windowHeight);
         background(0);
         angleMode(RADIANS);
-        createTriangularNetwork();
+        createFinalNetwork();
       }
 
       window.windowResized = function() {
         resizeCanvas(windowWidth, windowHeight);
-        createTriangularNetwork();
+        createFinalNetwork();
       }
 
       window.draw = function() {
@@ -183,11 +141,10 @@
             s.progress = 0;
 
             let possibleNextEdges = [];
-            // Partikel sollen nicht in die Arme abbiegen, daher Filterung nach r != -1
             if (s.type === 'tshark') { 
-              possibleNextEdges = networkEdges.filter(e => e.b === s.currentNode && e.a.r !== -1);
+              possibleNextEdges = networkEdges.filter(e => e.b === s.currentNode);
             } else { 
-              possibleNextEdges = networkEdges.filter(e => e.a === s.currentNode && e.b.r !== -1);
+              possibleNextEdges = networkEdges.filter(e => e.a === s.currentNode);
             }
 
             if (possibleNextEdges.length > 0) {
@@ -226,10 +183,9 @@
         let startNode, targetNode, initialEdge;
 
         if (type === 'tshark') {
-          const bottomRow = networkNodes.filter(n => n.r === TRI_ROWS);
-          if (bottomRow.length === 0) return;
-          const startCand = random(bottomRow);
-          const parentEdges = networkEdges.filter(e => e.b === startCand);
+          const bottomNode = networkNodes.find(n => n.r === TRI_ROWS);
+          if (!bottomNode) return;
+          const parentEdges = networkEdges.filter(e => e.b === bottomNode);
           if (parentEdges.length === 0) return;
 
           initialEdge = random(parentEdges);
@@ -251,10 +207,9 @@
         } else if (type === 'download') {
           const topRowNodes = networkNodes.filter(n => n.r === 0);
           if (topRowNodes.length === 0) return;
-          const topNode = topRowNodes[floor(topRowNodes.length / 2)];
-          if (!topNode) return;
+          const topNode = random(topRowNodes);
 
-          const childEdges = networkEdges.filter(e => e.a === topNode && e.b.r !== -1);
+          const childEdges = networkEdges.filter(e => e.a === topNode);
           if (childEdges.length === 0) return;
 
           initialEdge = random(childEdges);
