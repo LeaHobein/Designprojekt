@@ -18,6 +18,7 @@
   </style>
 </head>
 <body>
+  <div id="network-info" style="position:absolute; left:20px; bottom:60px; color:#ccc; font-family:sans-serif; font-size:16px; z-index:101;"></div>
   <button id="download-button">Download starten</button>
 
   <script>
@@ -28,18 +29,101 @@
       }
       
       let strokes = [];
+      let networkNodes = [];
+      let networkEdges = [];
+      let TRI_ROWS = 10; // Will be set dynamically
+
+      function createTriangularNetwork() {
+        networkNodes = [];
+        networkEdges = [];
+        TRI_ROWS = constrain(Math.round(height / 70), 7, 18);
+        let totalRows = TRI_ROWS + 1; // Only one row above the screen, one at bottom
+        let yTop = -height / (TRI_ROWS - 1); // one row above the screen
+        let yBottom = height * 0.92;
+        for (let r = 0; r < totalRows; r++) {
+          let t = r / (totalRows - 1);
+          let y = lerp(yTop, yBottom, t);
+          let nodesInRow = (totalRows - r);
+          let triangleWidth = map(width, 400, 1600, 0.6, 0.8, true) * width;
+          let rowWidth = triangleWidth * (nodesInRow / totalRows);
+          let xStart = width / 2 - rowWidth / 2;
+          let xStep = rowWidth / (nodesInRow - 1 || 1);
+          for (let c = 0; c < nodesInRow; c++) {
+            let x = nodesInRow === 1 ? width / 2 : xStart + c * xStep;
+            networkNodes.push({ x, y, r, c });
+          }
+        }
+        // Randomized connections: each node connects to 1 or 2 random (but nearby) nodes in the row below
+        for (let node of networkNodes) {
+          if (node.r < totalRows - 1) {
+            let belowRow = networkNodes.filter(n => n.r === node.r + 1);
+            // Identify if node is leftmost or rightmost in its row
+            let isLeftmost = node.c === 0;
+            let isRightmost = node.c === (totalRows - node.r - 1);
+            if (isLeftmost || isRightmost) {
+              // Only connect to the single closest node below
+              let closest = belowRow.reduce((best, n) => Math.abs(n.x - node.x) < Math.abs(best.x - node.x) ? n : best, belowRow[0]);
+              networkEdges.push({ a: node, b: closest });
+            } else {
+              // Sort by distance, but add randomness
+              let sorted = belowRow.slice().sort((a, b) => (Math.abs(a.x - node.x) + random(0, 60)) - (Math.abs(b.x - node.x) + random(0, 60)));
+              let numConnections = random() < 0.7 ? 2 : 1; // 70% chance for 2, else 1
+              let chosen = [];
+              for (let i = 0; i < numConnections && i < sorted.length; i++) {
+                if (random() < 0.9 || i === 0) { // favor closer nodes
+                  chosen.push(sorted[i]);
+                }
+              }
+              for (let target of chosen) {
+                networkEdges.push({ a: node, b: target });
+              }
+            }
+          }
+        }
+        // Ensure every node (except top row) has at least one connection to the row above
+        for (let node of networkNodes) {
+          if (node.r === 0) continue;
+          let aboveRow = networkNodes.filter(n => n.r === node.r - 1);
+          let hasConnection = networkEdges.some(e => e.b === node && aboveRow.includes(e.a));
+          if (!hasConnection && aboveRow.length > 0) {
+            // Add connection from closest node in above row
+            let closest = aboveRow.reduce((best, n) => Math.abs(n.x - node.x) < Math.abs(best.x - node.x) ? n : best, aboveRow[0]);
+            networkEdges.push({ a: closest, b: node });
+          }
+        }
+        // Update network info text
+        const infoDiv = document.getElementById('network-info');
+        if (infoDiv) infoDiv.textContent = `Netzwerk-Reihen: ${totalRows}`;
+      }
+
+      function drawNetwork() {
+        stroke(100, 100, 100, 120);
+        strokeWeight(2);
+        for (let edge of networkEdges) {
+          line(edge.a.x, edge.a.y, edge.b.x, edge.b.y);
+        }
+        fill(150, 150, 150, 180);
+        noStroke();
+        for (let node of networkNodes) {
+          ellipse(node.x, node.y, 10, 10);
+        }
+      }
 
       window.setup = function() {
         createCanvas(windowWidth, windowHeight);
         background(0);
         angleMode(RADIANS);
+        createTriangularNetwork();
       }
 
-      window.windowResized = function() { resizeCanvas(windowWidth, windowHeight); }
+      window.windowResized = function() {
+        resizeCanvas(windowWidth, windowHeight);
+        createTriangularNetwork();
+      }
 
       window.draw = function() {
         background(0, 60);
-
+        drawNetwork();
         for (let i = strokes.length - 1; i >= 0; i--) {
           let s = strokes[i];
           
