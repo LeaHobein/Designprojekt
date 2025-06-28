@@ -1,4 +1,4 @@
-<!-- index.html (Optimiert mit mehr Zufälligkeit) -->
+<!-- index.html (Optimiert zur Behebung von Lags) -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -28,17 +28,16 @@
         return;
       }
       
-      let pathStrokes = [];
+      let particlePool = [];
+      const MAX_PARTICLES = 700; 
+
       let networkNodes = [];
       let networkEdges = [];
-      let TRI_ROWS = 9; // Ergibt 10 Reihen
+      let TRI_ROWS = 9; 
 
       let lastDownloadStrokeTime = 0;
-      const downloadStrokeInterval = 30; 
+      const downloadStrokeInterval = 40; // Intervall leicht erhöht, um die Last zu reduzieren
 
-      /**
-       * Erstellt das finale Netzwerk: 10 Reihen, die unten breiter werden, um den Bildschirm zu füllen.
-       */
       function createFinalNetwork() {
         networkNodes = [];
         networkEdges = [];
@@ -46,7 +45,6 @@
         let yTop = -height / (TRI_ROWS);
         let yBottom = height; 
 
-        // Hauptnetzwerk erstellen (von oben nach unten)
         for (let r = 0; r < totalRows; r++) {
           let t = r / (totalRows - 1);
           let y = lerp(yTop, yBottom, t);
@@ -63,7 +61,6 @@
           for (let c = 0; c < nodesInRow; c++) {
             let baseX = (nodesInRow === 1) ? width / 2 : xStart + c * xStep;
             
-            // --- ANPASSUNG: Erhöhte Zufälligkeit für Abstände und Winkel ---
             let xRandomness = (r > 0 && r < totalRows - 1) ? random(-width * 0.05, width * 0.05) : 0;
             let yRandomness = (r > 0 && r < totalRows - 1) ? random(-height * 0.04, height * 0.04) : 0;
 
@@ -76,7 +73,6 @@
           }
         }
         
-        // Kanten für das Hauptnetzwerk erstellen
         let nodeCounter = 0;
         for (let r = 0; r < totalRows - 1; r++) {
             const nodesInCurrentRow = totalRows - r;
@@ -99,15 +95,12 @@
             nodeCounter += nodesInCurrentRow;
         }
 
-        // --- HINZUGEFÜGT: Zusätzliche Linie von unten zur Mitte ---
         const bottomNode = networkNodes.find(n => n.r === TRI_ROWS);
-        // Die Reihe mit 3 Knoten (r=7) hat einen zentralen Knoten
         const targetRow = networkNodes.filter(n => n.r === TRI_ROWS - 2); 
         if (bottomNode && targetRow.length > 0) {
-            // Finde den mittleren Knoten in der Zielreihe
             const middleNodeAbove = targetRow[Math.floor(targetRow.length / 2)];
             if (middleNodeAbove) {
-                 networkEdges.push({ a: bottomNode, b: middleNodeAbove });
+                 networkEdges.push({ a: middleNodeAbove, b: bottomNode });
             }
         }
         
@@ -124,7 +117,7 @@
         fill(150, 150, 150, 180);
         noStroke();
         for (let node of networkNodes) {
-          ellipse(node.x, node.y, 8, 8);
+          ellipse(node.x, node.y, 10, 10);
         }
       }
 
@@ -132,6 +125,12 @@
         createCanvas(windowWidth, windowHeight);
         background(0);
         angleMode(RADIANS);
+
+        // Particle Pool wird initialisiert, jedes Partikel bekommt eine Pfad-Historie
+        for (let i = 0; i < MAX_PARTICLES; i++) {
+          particlePool.push({ isActive: false, path: [] });
+        }
+
         createFinalNetwork();
       }
 
@@ -144,13 +143,16 @@
         background(0, 60);
         drawNetwork();
 
-        for (let i = pathStrokes.length - 1; i >= 0; i--) {
-          let s = pathStrokes[i];
+        for (const s of particlePool) {
+          if (!s.isActive) continue;
+
           s.progress += s.speed;
 
+          // Knotenwechsel-Logik
           if (s.progress >= 1) {
             s.currentNode = s.targetNode;
             s.progress = 0;
+            s.path.push({x: s.currentNode.x, y: s.currentNode.y}); // Letzten Punkt des alten Pfades hinzufügen
 
             let possibleNextEdges = [];
             if (s.type === 'tshark') { 
@@ -163,7 +165,7 @@
               const nextEdge = random(possibleNextEdges);
               s.targetNode = (s.type === 'tshark') ? nextEdge.a : nextEdge.b;
             } else {
-              pathStrokes.splice(i, 1);
+              s.isActive = false;
               continue;
             }
           }
@@ -171,26 +173,39 @@
           const headX = lerp(s.currentNode.x, s.targetNode.x, s.progress);
           const headY = lerp(s.currentNode.y, s.targetNode.y, s.progress);
 
-          const vx = s.targetNode.x - s.currentNode.x;
-          const vy = s.targetNode.y - s.currentNode.y;
-          const magnitude = sqrt(vx * vx + vy * vy);
-          const tailX = headX - (vx / magnitude) * s.length;
-          const tailY = headY - (vy / magnitude) * s.length;
+          // Neue Position am Anfang des Pfades hinzufügen
+          s.path.unshift({x: headX, y: headY});
 
-          strokeWeight(s.weight);
-          const splitPointX = lerp(headX, tailX, 0.8);
-          const splitPointY = lerp(headY, tailY, 0.8);
+          // Pfad auf die maximale Länge kürzen
+          if (s.path.length > s.length) {
+            s.path.pop();
+          }
 
-          stroke(s.color1);
-          line(headX, headY, splitPointX, splitPointY);
-
-          stroke(s.color2);
-          line(splitPointX, splitPointY, tailX, tailY);
+          // --- ÜBERARBEITETE, PERFORMANTE ZEICHENLOGIK ---
+          // Zeichnet den Partikel-Schweif als eine Kette von kurzen, gefärbten Liniensegmenten.
+          noFill();
+          for (let i = 0; i < s.path.length - 1; i++) {
+            const p1 = s.path[i];
+            const p2 = s.path[i + 1];
+            
+            // Berechne das Verhältnis für den Farb- und Dickenverlauf
+            const ratio = i / (s.path.length - 1);
+            
+            const strokeColor = lerpColor(s.color1, s.color2, ratio);
+            const sw = lerp(s.weight, s.weight * 0.2, ratio);
+            
+            stroke(strokeColor);
+            strokeWeight(sw);
+            line(p1.x, p1.y, p2.x, p2.y);
+          }
         }
       }
 
-      function addStroke(type) {
+      function spawnParticle(type) {
         if (networkEdges.length === 0) return;
+
+        const particle = particlePool.find(p => !p.isActive);
+        if (!particle) return;
 
         let startNode, targetNode, initialEdge;
 
@@ -204,16 +219,12 @@
           startNode = initialEdge.b;
           targetNode = initialEdge.a;
           
-          pathStrokes.push({
-            type: 'tshark',
-            currentNode: startNode,
-            targetNode: targetNode,
-            progress: 0,
-            speed: random(0.03, 0.06),
-            length: random(20, 40),
-            color1: color(100, 200, 255, 200),
-            color2: color(80, 150, 230, 220),
-            weight: 2
+          Object.assign(particle, {
+            isActive: true, type: 'tshark', currentNode: startNode, targetNode: targetNode,
+            progress: 0, speed: random(0.03, 0.06), 
+            length: floor(random(10, 18)), 
+            color1: color(100, 200, 255, 200), color2: color(80, 150, 230, 50), weight: 5,
+            path: [{x: startNode.x, y: startNode.y}]
           });
 
         } else if (type === 'download') {
@@ -228,16 +239,12 @@
           startNode = initialEdge.a;
           targetNode = initialEdge.b;
 
-          pathStrokes.push({
-            type: 'download',
-            currentNode: startNode,
-            targetNode: targetNode,
-            progress: 0,
-            speed: random(0.04, 0.08),
-            length: random(15, 30),
-            color1: color(255, 180, 80, 200),
-            color2: color(230, 150, 50, 220),
-            weight: 4
+          Object.assign(particle, {
+            isActive: true, type: 'download', currentNode: startNode, targetNode: targetNode,
+            progress: 0, speed: random(0.04, 0.08), 
+            length: floor(random(8, 15)),
+            color1: color(255, 180, 80, 220), color2: color(230, 150, 50, 50), weight: 6,
+            path: [{x: startNode.x, y: startNode.y}]
           });
         }
       }
@@ -265,11 +272,11 @@
           if (msg.type === 'START_DOWNLOAD') {
             startDownloadAction();
           } else if (msg.type === 'tshark-packet') {
-            addStroke('tshark');
+            spawnParticle('tshark');
           } else if (msg.type === 'download-packet') {
             const now = millis();
             if (now - lastDownloadStrokeTime > downloadStrokeInterval) {
-              addStroke('download');
+              spawnParticle('download');
               lastDownloadStrokeTime = now;
             }
           }
