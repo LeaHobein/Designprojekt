@@ -1,4 +1,4 @@
-<!-- index.html (Angepasst für Download von oben) -->
+<!-- index.html (Optimiert mit neuen seitlichen Armen) -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -28,84 +28,133 @@
         return;
       }
       
-      let strokes = [];
+      let pathStrokes = [];
       let networkNodes = [];
       let networkEdges = [];
-      let TRI_ROWS = 10; // Will be set dynamically
+      let TRI_ROWS = 10;
 
+      let lastDownloadStrokeTime = 0;
+      const downloadStrokeInterval = 30; 
+
+      /**
+       * Erstellt ein breites, semi-organisches Netzwerk mit seitlichen Armen.
+       */
       function createTriangularNetwork() {
         networkNodes = [];
         networkEdges = [];
         TRI_ROWS = constrain(Math.round(height / 70), 7, 18);
-        let totalRows = TRI_ROWS + 1; // Only one row above the screen, one at bottom
-        let yTop = -height / (TRI_ROWS - 1); // one row above the screen
-        let yBottom = height * 0.92;
+        let totalRows = TRI_ROWS + 1;
+        let yTop = -height / (TRI_ROWS - 1);
+        let yBottom = height; 
+
+        // Hauptnetzwerk erstellen
         for (let r = 0; r < totalRows; r++) {
           let t = r / (totalRows - 1);
           let y = lerp(yTop, yBottom, t);
           let nodesInRow = (totalRows - r);
-          let triangleWidth = map(width, 400, 1600, 0.6, 0.8, true) * width;
+          
+          let triangleWidth = width * 0.95; 
           let rowWidth = triangleWidth * (nodesInRow / totalRows);
           let xStart = width / 2 - rowWidth / 2;
-          let xStep = rowWidth / (nodesInRow - 1 || 1);
+          let xStep = (nodesInRow > 1) ? rowWidth / (nodesInRow - 1) : 0;
+          
           for (let c = 0; c < nodesInRow; c++) {
-            let x = nodesInRow === 1 ? width / 2 : xStart + c * xStep;
-            networkNodes.push({ x, y, r, c });
+            let baseX = (nodesInRow === 1) ? width / 2 : xStart + c * xStep;
+            
+            let xRandomness = (r === 0 || r === totalRows - 1) ? 0 : random(-width * 0.02, width * 0.02);
+            let yRandomness = (r === 0 || r === totalRows - 1) ? 0 : random(-height * 0.01, height * 0.01);
+
+            networkNodes.push({ 
+              x: baseX + xRandomness, 
+              y: y + yRandomness, 
+              r, 
+              c 
+            });
           }
         }
-        // Randomized connections: each node connects to 1 or 2 random (but nearby) nodes in the row below
-        for (let node of networkNodes) {
-          if (node.r < totalRows - 1) {
-            let belowRow = networkNodes.filter(n => n.r === node.r + 1);
-            // Identify if node is leftmost or rightmost in its row
-            let isLeftmost = node.c === 0;
-            let isRightmost = node.c === (totalRows - node.r - 1);
-            if (isLeftmost || isRightmost) {
-              // Only connect to the single closest node below
-              let closest = belowRow.reduce((best, n) => Math.abs(n.x - node.x) < Math.abs(best.x - node.x) ? n : best, belowRow[0]);
-              networkEdges.push({ a: node, b: closest });
-            } else {
-              // Sort by distance, but add randomness
-              let sorted = belowRow.slice().sort((a, b) => (Math.abs(a.x - node.x) + random(0, 60)) - (Math.abs(b.x - node.x) + random(0, 60)));
-              let numConnections = random() < 0.7 ? 2 : 1; // 70% chance for 2, else 1
-              let chosen = [];
-              for (let i = 0; i < numConnections && i < sorted.length; i++) {
-                if (random() < 0.9 || i === 0) { // favor closer nodes
-                  chosen.push(sorted[i]);
+        
+        // Kanten für das Hauptnetzwerk erstellen
+        let nodeCounter = 0;
+        for (let r = 0; r < totalRows - 1; r++) {
+            const nodesInCurrentRow = totalRows - r;
+            const nodesInNextRow = totalRows - (r + 1);
+            const nextRowStartIndex = nodeCounter + nodesInCurrentRow;
+
+            for (let c = 0; c < nodesInCurrentRow; c++) {
+                const parentNode = networkNodes[nodeCounter + c];
+
+                if (c < nodesInNextRow) {
+                    const childNode1 = networkNodes[nextRowStartIndex + c];
+                    networkEdges.push({ a: parentNode, b: childNode1 });
                 }
-              }
-              for (let target of chosen) {
-                networkEdges.push({ a: node, b: target });
-              }
+
+                if (c > 0) {
+                    const childNode2 = networkNodes[nextRowStartIndex + c - 1];
+                    networkEdges.push({ a: parentNode, b: childNode2 });
+                }
+            }
+            nodeCounter += nodesInCurrentRow;
+        }
+
+        // --- NEU: Gezielte Arme nach links und rechts oben ---
+        
+        // 1. Alle Randknoten sammeln
+        const leftEdgeNodes = [];
+        const rightEdgeNodes = [];
+        let tempNodeCounter = 0;
+        for (let r = 0; r < totalRows; r++) {
+          const nodesInRow = totalRows - r;
+          if (nodesInRow > 0) {
+            leftEdgeNodes.push(networkNodes[tempNodeCounter]);
+            if (nodesInRow > 1) {
+              rightEdgeNodes.push(networkNodes[tempNodeCounter + nodesInRow - 1]);
             }
           }
+          tempNodeCounter += nodesInRow;
         }
-        // Ensure every node (except top row) has at least one connection to the row above
-        for (let node of networkNodes) {
-          if (node.r === 0) continue;
-          let aboveRow = networkNodes.filter(n => n.r === node.r - 1);
-          let hasConnection = networkEdges.some(e => e.b === node && aboveRow.includes(e.a));
-          if (!hasConnection && aboveRow.length > 0) {
-            // Add connection from closest node in above row
-            let closest = aboveRow.reduce((best, n) => Math.abs(n.x - node.x) < Math.abs(best.x - node.x) ? n : best, aboveRow[0]);
-            networkEdges.push({ a: closest, b: node });
-          }
+
+        // 2. Randknoten von unten nach oben sortieren
+        leftEdgeNodes.sort((a, b) => b.y - a.y);
+        rightEdgeNodes.sort((a, b) => b.y - a.y);
+
+        // 3. Arme für die rechte Seite erstellen (beginnend beim 3. Knoten von unten)
+        for (let i = 2; i < rightEdgeNodes.length; i++) {
+          const originNode = rightEdgeNodes[i];
+          const targetNode = {
+            x: width,
+            y: originNode.y - random(height * 0.1, height * 0.4), // Ziel schräg nach oben
+            r: -1, c: -1 // Markierung als externer Knoten
+          };
+          networkNodes.push(targetNode);
+          networkEdges.push({ a: originNode, b: targetNode });
         }
-        // Update network info text
+
+        // 4. Arme für die linke Seite erstellen (beginnend beim 2. Knoten von unten)
+        for (let i = 1; i < leftEdgeNodes.length; i++) {
+          const originNode = leftEdgeNodes[i];
+          const targetNode = {
+            x: 0,
+            y: originNode.y - random(height * 0.1, height * 0.4), // Ziel schräg nach oben
+            r: -1, c: -1 // Markierung als externer Knoten
+          };
+          networkNodes.push(targetNode);
+          networkEdges.push({ a: originNode, b: targetNode });
+        }
+
         const infoDiv = document.getElementById('network-info');
         if (infoDiv) infoDiv.textContent = `Netzwerk-Reihen: ${totalRows}`;
       }
 
       function drawNetwork() {
         stroke(100, 100, 100, 120);
-        strokeWeight(2);
+        strokeWeight(1.5);
         for (let edge of networkEdges) {
           line(edge.a.x, edge.a.y, edge.b.x, edge.b.y);
         }
         fill(150, 150, 150, 180);
         noStroke();
         for (let node of networkNodes) {
-          ellipse(node.x, node.y, 10, 10);
+          ellipse(node.x, node.y, 8, 8);
         }
       }
 
@@ -124,78 +173,106 @@
       window.draw = function() {
         background(0, 60);
         drawNetwork();
-        for (let i = strokes.length - 1; i >= 0; i--) {
-          let s = strokes[i];
+
+        for (let i = pathStrokes.length - 1; i >= 0; i--) {
+          let s = pathStrokes[i];
+          s.progress += s.speed;
+
+          if (s.progress >= 1) {
+            s.currentNode = s.targetNode;
+            s.progress = 0;
+
+            let possibleNextEdges = [];
+            // Partikel sollen nicht in die Arme abbiegen, daher Filterung nach r != -1
+            if (s.type === 'tshark') { 
+              possibleNextEdges = networkEdges.filter(e => e.b === s.currentNode && e.a.r !== -1);
+            } else { 
+              possibleNextEdges = networkEdges.filter(e => e.a === s.currentNode && e.b.r !== -1);
+            }
+
+            if (possibleNextEdges.length > 0) {
+              const nextEdge = random(possibleNextEdges);
+              s.targetNode = (s.type === 'tshark') ? nextEdge.a : nextEdge.b;
+            } else {
+              pathStrokes.splice(i, 1);
+              continue;
+            }
+          }
           
-          s.x += s.vx;
-          s.y += s.vy;
+          const headX = lerp(s.currentNode.x, s.targetNode.x, s.progress);
+          const headY = lerp(s.currentNode.y, s.targetNode.y, s.progress);
+
+          const vx = s.targetNode.x - s.currentNode.x;
+          const vy = s.targetNode.y - s.currentNode.y;
+          const magnitude = sqrt(vx * vx + vy * vy);
+          const tailX = headX - (vx / magnitude) * s.length;
+          const tailY = headY - (vy / magnitude) * s.length;
 
           strokeWeight(s.weight);
-
-          const magnitude = sqrt(s.vx * s.vx + s.vy * s.vy);
-          const tailX = s.x - (s.vx / magnitude) * s.length;
-          const tailY = s.y - (s.vy / magnitude) * s.length;
-
-          const splitPointX = s.x * 0.2 + tailX * 0.8;
-          const splitPointY = s.y * 0.2 + tailY * 0.8;
+          const splitPointX = lerp(headX, tailX, 0.8);
+          const splitPointY = lerp(headY, tailY, 0.8);
 
           stroke(s.color1);
-          line(s.x, s.y, splitPointX, splitPointY);
+          line(headX, headY, splitPointX, splitPointY);
 
           stroke(s.color2);
           line(splitPointX, splitPointY, tailX, tailY);
-          
-          // Entferne die Linie, wenn sie den Bildschirm verlässt (oben, unten, links oder rechts)
-          if (s.y < -s.length || s.y > height + s.length || s.x < -s.length || s.x > width + s.length) { 
-            strokes.splice(i, 1); 
-          }
         }
       }
 
-      // Funktion zum Hinzufügen einer Linie, angepasst für die neue Logik
       function addStroke(type) {
-        let s;
+        if (networkEdges.length === 0) return;
 
-        if (type === 'download') {
-          // Download-Striche: Starten oben verteilt und bewegen sich zum Zielpunkt unten mitte
-          const speed = random(7, 10);
-          const startX = random(width);
-          const startY = 0;
-          const targetX = width / 2;
-          const targetY = height;
+        let startNode, targetNode, initialEdge;
+
+        if (type === 'tshark') {
+          const bottomRow = networkNodes.filter(n => n.r === TRI_ROWS);
+          if (bottomRow.length === 0) return;
+          const startCand = random(bottomRow);
+          const parentEdges = networkEdges.filter(e => e.b === startCand);
+          if (parentEdges.length === 0) return;
+
+          initialEdge = random(parentEdges);
+          startNode = initialEdge.b;
+          targetNode = initialEdge.a;
           
-          // Winkel zum Zielpunkt berechnen
-          const angle = atan2(targetY - startY, targetX - startX);
-
-          s = {
-            type: 'download',
-            x: startX,
-            y: startY,
-            vx: cos(angle) * speed,
-            vy: sin(angle) * speed,
-            length: random(15, 30),
-            color1: color(random(80, 200), random(50, 150), 255, 200),
-            color2: color(random(50, 150), random(30, 100), 230, 220),
-            weight: 5
-          };
-        } else {
-          // Tshark-Striche: Behalten ihre alte Logik bei (Start unten mitte, Flug nach oben)
-          const speed = random(3, 6);
-          const angle = random(-PI * 0.8, -PI * 0.2); // Nach oben gerichteter Winkel
-
-          s = {
+          pathStrokes.push({
             type: 'tshark',
-            x: width / 2,
-            y: height,
-            vx: cos(angle) * speed,
-            vy: sin(angle) * speed,
+            currentNode: startNode,
+            targetNode: targetNode,
+            progress: 0,
+            speed: random(0.03, 0.06),
             length: random(20, 40),
-            color1: color(random(100, 255), random(100, 255), random(100, 255), 200),
-            color2: color(random(100, 255), random(100, 255), random(100, 255), 220),
-            weight: 10
-          };
+            color1: color(100, 200, 255, 200),
+            color2: color(80, 150, 230, 220),
+            weight: 2
+          });
+
+        } else if (type === 'download') {
+          const topRowNodes = networkNodes.filter(n => n.r === 0);
+          if (topRowNodes.length === 0) return;
+          const topNode = topRowNodes[floor(topRowNodes.length / 2)];
+          if (!topNode) return;
+
+          const childEdges = networkEdges.filter(e => e.a === topNode && e.b.r !== -1);
+          if (childEdges.length === 0) return;
+
+          initialEdge = random(childEdges);
+          startNode = initialEdge.a;
+          targetNode = initialEdge.b;
+
+          pathStrokes.push({
+            type: 'download',
+            currentNode: startNode,
+            targetNode: targetNode,
+            progress: 0,
+            speed: random(0.04, 0.08),
+            length: random(15, 30),
+            color1: color(255, 180, 80, 200),
+            color2: color(230, 150, 50, 220),
+            weight: 4
+          });
         }
-        strokes.push(s);
       }
       
       function startDownloadAction() {
@@ -223,14 +300,19 @@
           } else if (msg.type === 'tshark-packet') {
             addStroke('tshark');
           } else if (msg.type === 'download-packet') {
-            addStroke('download');
+            const now = millis();
+            if (now - lastDownloadStrokeTime > downloadStrokeInterval) {
+              addStroke('download');
+              lastDownloadStrokeTime = now;
+            }
           }
         } catch(e) {
-          // Ignoriere Nachrichten, die kein valides JSON sind
+          // Ignoriert invalide JSON-Nachrichten
         }
       };
 
       ws.onopen = () => console.log("STATUS: WebSocket-Verbindung ist offen.");
+      ws.onerror = (err) => console.error("WebSocket Fehler:", err);
     });
   </script>
 </body>
