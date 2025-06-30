@@ -1,4 +1,4 @@
-<!-- index.html (Optimiert zur Behebung von Lags) -->
+<!-- index.html (Optimiert mit zweifarbigen Partikeln) -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -181,17 +181,24 @@
             s.path.pop();
           }
 
-          // --- ÜBERARBEITETE, PERFORMANTE ZEICHENLOGIK ---
-          // Zeichnet den Partikel-Schweif als eine Kette von kurzen, gefärbten Liniensegmenten.
+          // --- ÜBERARBEITETE ZEICHENLOGIK MIT KOPF-FARBE ---
           noFill();
           for (let i = 0; i < s.path.length - 1; i++) {
             const p1 = s.path[i];
             const p2 = s.path[i + 1];
             
-            // Berechne das Verhältnis für den Farb- und Dickenverlauf
+            let strokeColor;
+            const headLength = 3; // Anzahl der Punkte für den Kopf
+
+            if (i < headLength) {
+                strokeColor = s.headColor;
+            } else {
+                // Berechne das Verhältnis für den Rest des Schweifs
+                const ratio = (i - headLength) / (s.path.length - 1 - headLength);
+                strokeColor = lerpColor(s.particleColor, s.trailColor, ratio);
+            }
+
             const ratio = i / (s.path.length - 1);
-            
-            const strokeColor = lerpColor(s.color1, s.color2, ratio);
             const sw = lerp(s.weight, s.weight * 0.2, ratio);
             
             stroke(strokeColor);
@@ -208,6 +215,7 @@
         if (!particle) return;
 
         let startNode, targetNode, initialEdge;
+        let headColor, particleColor, trailColor;
 
         if (type === 'tshark') {
           const bottomNode = networkNodes.find(n => n.r === TRI_ROWS);
@@ -219,11 +227,19 @@
           startNode = initialEdge.b;
           targetNode = initialEdge.a;
           
+          // ANPASSUNG: Orange für den Kopf, Rest Blautöne
+          headColor = color(255, 130, 0, 220); // Orange
+          particleColor = color(random(0, 100), random(100, 200), 255, 220); 
+          trailColor = color(red(particleColor) * 0.5, green(particleColor) * 0.5, blue(particleColor), 50);
+          
           Object.assign(particle, {
             isActive: true, type: 'tshark', currentNode: startNode, targetNode: targetNode,
             progress: 0, speed: random(0.03, 0.06), 
             length: floor(random(10, 18)), 
-            color1: color(100, 200, 255, 200), color2: color(80, 150, 230, 50), weight: 5,
+            headColor: headColor,
+            particleColor: particleColor,
+            trailColor: trailColor,
+            weight: 5,
             path: [{x: startNode.x, y: startNode.y}]
           });
 
@@ -239,11 +255,19 @@
           startNode = initialEdge.a;
           targetNode = initialEdge.b;
 
+          // ANPASSUNG: Pink für den Kopf, Rest Grüntöne
+          headColor = color(220, 100, 255, 220); //lila-pink
+          particleColor = color(random(0, 100), random(180, 255), random(0, 150), 220);
+          trailColor = color(red(particleColor) * 0.5, green(particleColor) * 0.5, blue(particleColor) * 0.5, 50);
+          
           Object.assign(particle, {
             isActive: true, type: 'download', currentNode: startNode, targetNode: targetNode,
             progress: 0, speed: random(0.04, 0.08), 
             length: floor(random(8, 15)),
-            color1: color(255, 180, 80, 220), color2: color(230, 150, 50, 50), weight: 6,
+            headColor: headColor,
+            particleColor: particleColor,
+            trailColor: trailColor,
+            weight: 6,
             path: [{x: startNode.x, y: startNode.y}]
           });
         }

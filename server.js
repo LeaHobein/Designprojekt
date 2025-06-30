@@ -123,7 +123,7 @@ function findAndStartTshark() {
   //Lea: INTERFACE_ID = '5'; path: 'COM4',
   //Krystyna: INTERFACE_ID = '5'; path: 'COM5',
 
-  const INTERFACE_ID = '5'; 
+  const INTERFACE_ID = '4'; 
 
   console.log(`Starte tshark auf dem manuell festgelegten Interface: ${INTERFACE_ID}`);
   console.log("Falls dies nicht funktioniert, starte das Skript neu und prüfe die Nummer mit 'tshark -D' in der Kommandozeile.");
