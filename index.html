@@ -28,7 +28,7 @@
       let networkNodes = [];
       let networkEdges = [];
       const TRI_ROWS = 9; // Ergibt 10 Reihen
-      let monoSynth;
+      let polySynth;
 
       // Throttling-Variablen zur Performance-Kontrolle
       let lastDownloadStrokeTime = 0;
@@ -133,7 +133,7 @@
         }
 
         createFinalNetwork();
-        monoSynth = new p5.MonoSynth();
+        polySynth = new p5.PolySynth();
       }
 
       // Passt die Canvas-Größe bei Fensteränderung an
@@ -157,7 +157,9 @@
             s.currentNode = s.targetNode;
             s.progress = 0;
             s.path.push({x: s.currentNode.x, y: s.currentNode.y}); 
-            playSynth();
+            if (s.type === 'tshark') {
+              playSynth();
+            }
 
             let possibleNextEdges = [];
             if (s.type === 'tshark') { 
@@ -275,11 +277,11 @@
       }
 
       function playSynth() {
-        let note = random(['C4','D4','E4','F4','G4','A4','B4']);
+        let note = random(['G4', 'C5', 'E5']);
         let velocity = random(0.3, 0.8); // Use a value between 0 and 1
         let time = 0;
         let dur = 1/6;
-        monoSynth.play(note, velocity, time, dur);
+        polySynth.play(note, velocity, time, dur);
       }
       
       // Löst den Download aus
