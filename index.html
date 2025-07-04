@@ -1,4 +1,4 @@
-<!-- index.html (Angepasst für Download von oben) -->
+<!-- index.html (Finale, fehlerfreie Version) -->
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -9,17 +9,11 @@
   <style>
     body, html { margin: 0; padding: 0; overflow: hidden; background: #000; }
     canvas { display: block; }
-    #download-button {
-      position: absolute; bottom: 20px; left: 20px;
-      padding: 12px 24px; background: #007bff; color: #fff;
-      border: none; border-radius: 8px; font-size: 16px;
-      cursor: pointer; z-index: 100;
-    }
-    #download-button:disabled { background: #555; cursor: not-allowed; }
+    /* Styling für Button und Overlay wurde entfernt */
   </style>
 </head>
 <body>
-  <button id="download-button">Download starten</button>
+  <!-- UI-Elemente für Button und Status wurden entfernt -->
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -148,6 +142,7 @@
         createFinalNetwork();
       }
 
+      // p5.js Haupt-Draw-Loop
       window.draw = function() {
         background(0, 60);
         drawNetwork();
@@ -289,20 +284,23 @@
       
       // Löst den Download aus
       function startDownloadAction() {
-        const button = document.getElementById("download-button");
-        if(button.disabled) return;
-        button.textContent = "Download läuft...";
-        button.disabled = true;
         window.location.href = '/start-download';
-        setTimeout(() => {
-          button.textContent = "Download erneut starten";
-          button.disabled = false;
-        }, 20000);
       }
 
-      document.getElementById("download-button").addEventListener("click", startDownloadAction);
-
+      // WebSocket-Verbindung und Nachrichten-Handling
       const ws = new WebSocket('ws://localhost:3000');
+      
+      ws.onopen = () => {
+        console.log("STATUS: WebSocket-Verbindung ist offen.");
+      };
+
+      ws.onerror = (err) => {
+        console.error("WebSocket Fehler:", err);
+      };
+
+      ws.onclose = (event) => {
+        console.log('WebSocket-Verbindung geschlossen:', event.code, event.reason);
+      };
       
       ws.onmessage = (event) => {
         try {
@@ -311,12 +309,16 @@
           if (msg.type === 'START_DOWNLOAD') {
             startDownloadAction();
           } else if (msg.type === 'tshark-packet') {
-            addStroke('tshark');
+            spawnParticle('tshark');
           } else if (msg.type === 'download-packet') {
-            addStroke('download');
+            const now = millis();
+            if (now - lastDownloadStrokeTime > downloadStrokeInterval) {
+              spawnParticle('download');
+              lastDownloadStrokeTime = now;
+            }
           }
         } catch(e) {
-          // Ignoriere Nachrichten, die kein valides JSON sind
+          // Ignoriert invalide JSON-Nachrichten
         }
       };
 
