@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <title>Live Paket Visualisierung mit p5.js</title>
   <script src="https://cdn.jsdelivr.net/npm/p5@1.9.0/lib/p5.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/addons/p5.sound.min.js"></script>
   <style>
     body, html { margin: 0; padding: 0; overflow: hidden; background: #000; }
     canvas { display: block; }
@@ -27,93 +28,266 @@
         return;
       }
       
-      let strokes = [];
+      // Globale Variablen für die Visualisierung
+      let particlePool = [];
+      const MAX_PARTICLES = 700; 
+      let networkNodes = [];
+      let networkEdges = [];
+      const TRI_ROWS = 9; // Ergibt 10 Reihen
+      let monoSynth;
 
+      // Throttling-Variablen zur Performance-Kontrolle
+      let lastDownloadStrokeTime = 0;
+      const downloadStrokeInterval = 40; 
+
+      // Erstellt die Netzwerkstruktur
+      function createFinalNetwork() {
+        networkNodes = [];
+        networkEdges = [];
+        const totalRows = TRI_ROWS + 1;
+        const yTop = -height / TRI_ROWS;
+        const yBottom = height; 
+
+        // Generiert die Knotenpunkte Reihe für Reihe
+        for (let r = 0; r < totalRows; r++) {
+          const t = r / (totalRows - 1);
+          const y = lerp(yTop, yBottom, t);
+          const nodesInRow = totalRows - r;
+          
+          const maxWidth = width * 1.1; 
+          const scaleFactor = (nodesInRow - 1) / (totalRows - 1);
+          const curvedScale = pow(scaleFactor, 0.6); 
+          const rowWidth = maxWidth * curvedScale;
+
+          const xStart = width / 2 - rowWidth / 2;
+          const xStep = (nodesInRow > 1) ? rowWidth / (nodesInRow - 1) : 0;
+          
+          for (let c = 0; c < nodesInRow; c++) {
+            const baseX = (nodesInRow === 1) ? width / 2 : xStart + c * xStep;
+            
+            const xRandomness = (r > 0 && r < totalRows - 1) ? random(-width * 0.05, width * 0.05) : 0;
+            const yRandomness = (r > 0 && r < totalRows - 1) ? random(-height * 0.04, height * 0.04) : 0;
+
+            networkNodes.push({ 
+              x: baseX + xRandomness, 
+              y: y + yRandomness, 
+              r, 
+              c 
+            });
+          }
+        }
+        
+        // Verbindet die Knoten zu einem Gitter
+        let nodeCounter = 0;
+        for (let r = 0; r < totalRows - 1; r++) {
+            const nodesInCurrentRow = totalRows - r;
+            const nodesInNextRow = totalRows - (r + 1);
+            const nextRowStartIndex = nodeCounter + nodesInCurrentRow;
+
+            for (let c = 0; c < nodesInCurrentRow; c++) {
+                const parentNode = networkNodes[nodeCounter + c];
+
+                if (c < nodesInNextRow) {
+                    const childNode1 = networkNodes[nextRowStartIndex + c];
+                    networkEdges.push({ a: parentNode, b: childNode1 });
+                }
+
+                if (c > 0) {
+                    const childNode2 = networkNodes[nextRowStartIndex + c - 1];
+                    networkEdges.push({ a: parentNode, b: childNode2 });
+                }
+            }
+            nodeCounter += nodesInCurrentRow;
+        }
+
+        // Fügt die spezielle Verbindungslinie am unteren Rand hinzu
+        const bottomNode = networkNodes.find(n => n.r === TRI_ROWS);
+        const targetRow = networkNodes.filter(n => n.r === TRI_ROWS - 2); 
+        if (bottomNode && targetRow.length > 0) {
+            const middleNodeAbove = targetRow[Math.floor(targetRow.length / 2)];
+            if (middleNodeAbove) {
+                 networkEdges.push({ a: middleNodeAbove, b: bottomNode });
+            }
+        }
+      }
+
+      // Zeichnet das statische Netzwerk
+      function drawNetwork() {
+        stroke(74, 34, 96);
+        strokeWeight(1.5);
+        for (const edge of networkEdges) {
+          line(edge.a.x, edge.a.y, edge.b.x, edge.b.y);
+          fill(74, 34, 96);
+        }
+        
+        noStroke();
+        for (const node of networkNodes) {
+          ellipse(node.x, node.y, 10, 10);
+          fill(188, 77, 100);
+        }
+      }
+
+      // p5.js Setup-Funktion
       window.setup = function() {
         createCanvas(windowWidth, windowHeight);
         background(0);
         angleMode(RADIANS);
+
+        // Initialisiert den Particle Pool
+        for (let i = 0; i < MAX_PARTICLES; i++) {
+          particlePool.push({ isActive: false, path: [] });
+        }
+
+        createFinalNetwork();
+        monoSynth = new p5.MonoSynth();
       }
 
-      window.windowResized = function() { resizeCanvas(windowWidth, windowHeight); }
+      // Passt die Canvas-Größe bei Fensteränderung an
+      window.windowResized = function() {
+        resizeCanvas(windowWidth, windowHeight);
+        createFinalNetwork();
+      }
 
       window.draw = function() {
         background(0, 60);
+        drawNetwork();
 
-        for (let i = strokes.length - 1; i >= 0; i--) {
-          let s = strokes[i];
+        for (const s of particlePool) {
+          if (!s.isActive) continue;
+
+          s.progress += s.speed;
+
+          // Logik für den Knotenpunkt-Wechsel
+          if (s.progress >= 1) {
+            s.currentNode = s.targetNode;
+            s.progress = 0;
+            s.path.push({x: s.currentNode.x, y: s.currentNode.y}); 
+            playSynth();
+
+            let possibleNextEdges = [];
+            if (s.type === 'tshark') { 
+              possibleNextEdges = networkEdges.filter(e => e.b === s.currentNode);
+            } else { 
+              possibleNextEdges = networkEdges.filter(e => e.a === s.currentNode);
+            }
+
+            if (possibleNextEdges.length > 0) {
+              const nextEdge = random(possibleNextEdges);
+              s.targetNode = (s.type === 'tshark') ? nextEdge.a : nextEdge.b;
+            } else {
+              s.isActive = false;
+              continue;
+            }
+          }
           
-          s.x += s.vx;
-          s.y += s.vy;
+          const headX = lerp(s.currentNode.x, s.targetNode.x, s.progress);
+          const headY = lerp(s.currentNode.y, s.targetNode.y, s.progress);
 
-          strokeWeight(s.weight);
+          s.path.unshift({x: headX, y: headY});
 
-          const magnitude = sqrt(s.vx * s.vx + s.vy * s.vy);
-          const tailX = s.x - (s.vx / magnitude) * s.length;
-          const tailY = s.y - (s.vy / magnitude) * s.length;
+          if (s.path.length > s.length) {
+            s.path.pop();
+          }
 
-          const splitPointX = s.x * 0.2 + tailX * 0.8;
-          const splitPointY = s.y * 0.2 + tailY * 0.8;
+          // Performante Zeichenlogik für die Partikel
+          noFill();
+          for (let i = 0; i < s.path.length - 1; i++) {
+            const p1 = s.path[i];
+            const p2 = s.path[i + 1];
+            
+            let strokeColor;
+            const headLength = 3; 
 
-          stroke(s.color1);
-          line(s.x, s.y, splitPointX, splitPointY);
+            if (i < headLength) {
+                strokeColor = s.headColor;
+            } else {
+                const ratio = (i - headLength) / (s.path.length - 1 - headLength);
+                strokeColor = lerpColor(s.particleColor, s.trailColor, ratio);
+            }
 
-          stroke(s.color2);
-          line(splitPointX, splitPointY, tailX, tailY);
-          
-          // Entferne die Linie, wenn sie den Bildschirm verlässt (oben, unten, links oder rechts)
-          if (s.y < -s.length || s.y > height + s.length || s.x < -s.length || s.x > width + s.length) { 
-            strokes.splice(i, 1); 
+            const ratio = i / (s.path.length - 1);
+            const sw = lerp(s.weight, s.weight * 0.2, ratio);
+            
+            stroke(strokeColor);
+            strokeWeight(sw);
+            line(p1.x, p1.y, p2.x, p2.y);
           }
         }
       }
 
-      // Funktion zum Hinzufügen einer Linie, angepasst für die neue Logik
-      function addStroke(type) {
-        let s;
+      // Aktiviert ein Partikel aus dem Pool
+      function spawnParticle(type) {
+        if (networkEdges.length === 0) return;
 
-        if (type === 'download') {
-          // Download-Striche: Starten oben verteilt und bewegen sich zum Zielpunkt unten mitte
-          const speed = random(7, 10);
-          const startX = random(width);
-          const startY = 0;
-          const targetX = width / 2;
-          const targetY = height;
+        const particle = particlePool.find(p => !p.isActive);
+        if (!particle) return;
+
+        let startNode, targetNode, initialEdge;
+        let headColor, particleColor, trailColor;
+
+        if (type === 'tshark') {
+          const bottomNode = networkNodes.find(n => n.r === TRI_ROWS);
+          if (!bottomNode) return;
+          const parentEdges = networkEdges.filter(e => e.b === bottomNode);
+          if (parentEdges.length === 0) return;
+
+          initialEdge = random(parentEdges);
+          startNode = initialEdge.b;
+          targetNode = initialEdge.a;
           
-          // Winkel zum Zielpunkt berechnen
-          const angle = atan2(targetY - startY, targetX - startX);
+          headColor = color(220, 100, 255, 220); // Lila/Pink
+          particleColor = color(random(0, 100), random(180, 255), random(0, 150), 220);
+          trailColor = color(red(particleColor) * 0.5, green(particleColor) * 0.5, blue(particleColor) * 0.5, 50);
+          
+          Object.assign(particle, {
+            isActive: true, type: 'tshark', currentNode: startNode, targetNode: targetNode,
+            progress: 0, speed: random(0.03, 0.04), 
+            length: floor(random(10, 18)), 
+            headColor: headColor,
+            particleColor: particleColor,
+            trailColor: trailColor,
+            weight: 5,
+            path: [{x: startNode.x, y: startNode.y}]
+          });
 
-          s = {
-            type: 'download',
-            x: startX,
-            y: startY,
-            vx: cos(angle) * speed,
-            vy: sin(angle) * speed,
-            length: random(15, 30),
-            color1: color(random(80, 200), random(50, 150), 255, 200),
-            color2: color(random(50, 150), random(30, 100), 230, 220),
-            weight: 5
-          };
-        } else {
-          // Tshark-Striche: Behalten ihre alte Logik bei (Start unten mitte, Flug nach oben)
-          const speed = random(3, 6);
-          const angle = random(-PI * 0.8, -PI * 0.2); // Nach oben gerichteter Winkel
+        } else if (type === 'download') {
+          const topRowNodes = networkNodes.filter(n => n.r === 0);
+          if (topRowNodes.length === 0) return;
+          const topNode = random(topRowNodes);
 
-          s = {
-            type: 'tshark',
-            x: width / 2,
-            y: height,
-            vx: cos(angle) * speed,
-            vy: sin(angle) * speed,
-            length: random(20, 40),
-            color1: color(random(100, 255), random(100, 255), random(100, 255), 200),
-            color2: color(random(100, 255), random(100, 255), random(100, 255), 220),
-            weight: 10
-          };
+          const childEdges = networkEdges.filter(e => e.a === topNode);
+          if (childEdges.length === 0) return;
+
+          initialEdge = random(childEdges);
+          startNode = initialEdge.a;
+          targetNode = initialEdge.b;
+
+          headColor = color(255, 130, 0, 220); // Orange
+          particleColor = color(random(0, 100), random(100, 200), 255, 220); 
+          trailColor = color(red(particleColor) * 0.5, green(particleColor) * 0.5, blue(particleColor), 50);
+          
+          Object.assign(particle, {
+            isActive: true, type: 'download', currentNode: startNode, targetNode: targetNode,
+            progress: 0, speed: random(0.03, 0.06), 
+            length: floor(random(8, 15)),
+            headColor: headColor,
+            particleColor: particleColor,
+            trailColor: trailColor,
+            weight: 5,
+            path: [{x: startNode.x, y: startNode.y}]
+          });
         }
-        strokes.push(s);
+      }
+
+      function playSynth() {
+        let note = random(['C4','D4','E4','F4','G4','A4','B4']);
+        let velocity = random(0.3, 0.8); // Use a value between 0 and 1
+        let time = 0;
+        let dur = 1/6;
+        monoSynth.play(note, velocity, time, dur);
       }
       
+      // Löst den Download aus
       function startDownloadAction() {
         const button = document.getElementById("download-button");
         if(button.disabled) return;
@@ -146,7 +320,11 @@
         }
       };
 
-      ws.onopen = () => console.log("STATUS: WebSocket-Verbindung ist offen.");
+      // Start audio context on user gesture
+      window.mousePressed = function() {
+        userStartAudio();
+      }
+
     });
   </script>
 </body>
