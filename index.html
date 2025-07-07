@@ -158,7 +158,13 @@
             s.progress = 0;
             s.path.push({x: s.currentNode.x, y: s.currentNode.y}); 
             if (s.type === 'tshark') {
-              playSynth();
+              playSynth('tshark');
+            }
+
+            // Play synth when download particle reaches row 3 (4th row)
+            if (s.type === 'download' && s.currentNode.r === 3 && !s.hasPlayedSynthAtRow3) {
+              playSynth('download');
+              s.hasPlayedSynthAtRow3 = true;
             }
 
             let possibleNextEdges = [];
@@ -245,7 +251,8 @@
             particleColor: particleColor,
             trailColor: trailColor,
             weight: 5,
-            path: [{x: startNode.x, y: startNode.y}]
+            path: [{x: startNode.x, y: startNode.y}],
+            hasPlayedSynthAtRow3: false // reset flag
           });
 
         } else if (type === 'download') {
@@ -273,14 +280,29 @@
             particleColor: particleColor,
             trailColor: trailColor,
             weight: 5,
-            path: [{x: startNode.x, y: startNode.y}]
+            path: [{x: startNode.x, y: startNode.y}],
+            hasPlayedSynthAtRow3: false // reset flag
           });
         }
       }
 
+<<<<<<< Updated upstream
       function playSynth() {
         let note = random(['C3','E3','G3','C4','E4','G4', 'C5', 'E5', 'G5']);
         let velocity = random(0.3, 0.8); // Use a value between 0 and 1
+=======
+      function playSynth(type) {
+        let notes;
+        if (type === 'tshark') {
+          notes = ['C4','E4','G4', 'C5', 'E5', 'G5']; // Upload notes
+        } else if (type === 'download') {
+          notes = ['C3','E3','G3',]; // Download notes
+        } else {
+          notes = ['C3','E3','G3','C4','E4','G4', 'C5', 'E5', 'G5']; // Default
+        }
+        let note = random(notes);
+        let velocity = 0.3; // Use a value between 0 and 1
+>>>>>>> Stashed changes
         let time = 0;
         let dur = 1/6;
         polySynth.play(note, velocity, time, dur);

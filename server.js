@@ -120,7 +120,7 @@ function findAndStartTshark() {
   // Wir tragen diese Nummer hier fest ein, um alle Erkennungsfehler zu umgehen.
 
   //Kristina: INTERFACE_ID = '4'; path: 'COM5',
-  //Lea: INTERFACE_ID = '5'; path: 'COM4', beim eigenen `COM5`
+  //Lea: INTERFACE_ID = '5'; path: 'COM4', beim eigenen `COM5` bei Ethernet: 8
   //Krystyna: INTERFACE_ID = '5'; path: 'COM5',
 
   const INTERFACE_ID = '5'; 
