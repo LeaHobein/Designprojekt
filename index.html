@@ -158,12 +158,12 @@
             s.progress = 0;
             s.path.push({x: s.currentNode.x, y: s.currentNode.y}); 
             if (s.type === 'tshark') {
-              playSynth('tshark');
+              playSynth('tshark', s.currentNode.r, TRI_ROWS);
             }
 
             // Play synth when download particle reaches row 3 (4th row)
             if (s.type === 'download' && s.currentNode.r === 3 && !s.hasPlayedSynthAtRow3) {
-              playSynth('download');
+              playSynth('download', s.currentNode.r, TRI_ROWS);
               s.hasPlayedSynthAtRow3 = true;
             }
 
@@ -286,23 +286,25 @@
         }
       }
 
-<<<<<<< Updated upstream
-      function playSynth() {
-        let note = random(['C3','E3','G3','C4','E4','G4', 'C5', 'E5', 'G5']);
-        let velocity = random(0.3, 0.8); // Use a value between 0 and 1
-=======
-      function playSynth(type) {
+      function playSynth(type, row, totalRows) {
         let notes;
         if (type === 'tshark') {
-          notes = ['C4','E4','G4', 'C5', 'E5', 'G5']; // Upload notes
+          notes = ['C3','E3','G3','C4','E4','G4', 'C5', 'E5', 'G5']; // Upload notes
         } else if (type === 'download') {
-          notes = ['C3','E3','G3',]; // Download notes
+          notes = ['A3','C4','E4','G4','C5']; // Download notes
         } else {
           notes = ['C3','E3','G3','C4','E4','G4', 'C5', 'E5', 'G5']; // Default
         }
-        let note = random(notes);
-        let velocity = 0.3; // Use a value between 0 and 1
->>>>>>> Stashed changes
+        let note;
+        if (type === 'tshark' && typeof row === 'number' && typeof totalRows === 'number' && totalRows > 1) {
+          // Map row to note index (bottom = 0, top = notes.length-1)
+          let idx = Math.round((row / (totalRows - 1)) * (notes.length - 1));
+          idx = Math.max(0, Math.min(notes.length - 1, idx));
+          note = notes[idx];
+        } else {
+          note = random(notes);
+        }
+        let velocity = 0.3;
         let time = 0;
         let dur = 1/6;
         polySynth.play(note, velocity, time, dur);
