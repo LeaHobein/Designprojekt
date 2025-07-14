@@ -7,7 +7,7 @@ const WebSocket = require('ws');
 const { SerialPort } = require("serialport");
 const { ReadlineParser } = require("@serialport/parser-readline");
 
-// --- HTTP Server ---
+//HTTP Server
 const server = http.createServer((req, res) => {
   // Route für die Hauptseite
   if (req.url === '/') {
