@@ -1,4 +1,4 @@
-<!-- index.html (Finale, fehlerfreie Version) -->
+
 <!DOCTYPE html>
 <html lang="de">
 <head>
@@ -9,11 +9,11 @@
   <style>
     body, html { margin: 0; padding: 0; overflow: hidden; background: #000; }
     canvas { display: block; }
-    /* Styling für Button und Overlay wurde entfernt */
+    
   </style>
 </head>
 <body>
-  <!-- UI-Elemente für Button und Status wurden entfernt -->
+  
 
   <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -105,7 +105,7 @@
         }
       }
 
-      // Zeichnet das statische Netzwerk
+      // Zeichnet Netzwerk
       function drawNetwork() {
         stroke(74, 34, 96);
         strokeWeight(1.5);
@@ -136,7 +136,7 @@
         polySynth = new p5.PolySynth();
       }
 
-      // Passt die Canvas-Größe bei Fensteränderung an
+     
       window.windowResized = function() {
         resizeCanvas(windowWidth, windowHeight);
         createFinalNetwork();
@@ -218,7 +218,7 @@
         }
       }
 
-      // Aktiviert ein Partikel aus dem Pool
+      
       function spawnParticle(type) {
         if (networkEdges.length === 0) return;
 
@@ -310,12 +310,12 @@
         polySynth.play(note, velocity, time, dur);
       }
       
-      // Löst den Download aus
+      //download
       function startDownloadAction() {
         window.location.href = '/start-download';
       }
 
-      // WebSocket-Verbindung und Nachrichten-Handling
+      
       const ws = new WebSocket('ws://localhost:3000');
       
       ws.onopen = () => {
@@ -346,11 +346,11 @@
             }
           }
         } catch(e) {
-          // Ignoriert invalide JSON-Nachrichten
+          
         }
       };
 
-      // Start audio context on user gesture
+      
       window.mousePressed = function() {
         userStartAudio();
       }

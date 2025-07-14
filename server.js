@@ -26,7 +26,7 @@ const server = http.createServer((req, res) => {
     console.log('Download-Anfrage erhalten. Starte den Download-Stream...');
     const fileUrl = 'https://ash-speed.hetzner.com/1GB.bin';
     
-    // **ANPASSUNG**: Wir holen uns das `request`-Objekt, um den Download bei Bedarf abbrechen zu können.
+    
     const request = https.get(fileUrl, (downloadStream) => {
       // Prüfen, ob die Verbindung noch besteht, bevor wir Daten senden
       if (res.socket.destroyed) {
@@ -53,7 +53,7 @@ const server = http.createServer((req, res) => {
       downloadStream.on('end', () => console.log('Download-Stream beendet.'));
     });
 
-    // **NEU**: Listener, der reagiert, wenn der Benutzer die Verbindung schließt (z.B. Download abbricht).
+    
     res.on('close', () => {
       console.log('Client hat die Verbindung getrennt. Breche den Server-Download ab.');
       request.destroy(); // Bricht die ausgehende HTTPS-Anfrage ab.
@@ -74,7 +74,7 @@ const server = http.createServer((req, res) => {
 
 const wss = new WebSocket.Server({ server });
 
-// Hilfsfunktion, um eine Nachricht an alle Clients zu senden
+
 function broadcast(message) {
     wss.clients.forEach(client => {
         if (client.readyState === WebSocket.OPEN) {
@@ -83,7 +83,7 @@ function broadcast(message) {
     });
 }
 
-// --- tshark-Funktion: Startet den Live-Mitschnitt für den Hintergrundverkehr ---
+// tshark-Funktion: Startet den Live-Mitschnitt für den Hintergrundverkehr
 function startTshark(interfaceId) {
   console.log(`Starte tshark für Hintergrundverkehr auf Interface ${interfaceId}...`);
   const tshark = spawn("C:\\Program Files\\Wireshark\\tshark.exe", ["-i", interfaceId, "-T", "json", "-l"]);
@@ -113,7 +113,7 @@ function startTshark(interfaceId) {
   });
 }
 
-// --- Funktion zum Finden des tshark-Interfaces (FINALE MANUELLE VERSION (diesmal wirklich)) ---
+
 
 function findAndStartTshark() {
   // Wir haben herausgefunden, dass das richtige Interface die Nummer 4 ist.
@@ -131,7 +131,7 @@ function findAndStartTshark() {
   startTshark(INTERFACE_ID);
 }
 
-// --- Arduino Logik ---
+//Arduino-Logik
 try {
   const arduinoPort = new SerialPort({ path: 'COM4', baudRate: 9600 });
   const parser = arduinoPort.pipe(new ReadlineParser({ delimiter: '\r\n' }));
@@ -145,7 +145,7 @@ try {
   console.warn("WARNUNG: Arduino-Port COM5 nicht gefunden.");
 }
 
-// --- Serverstart ---
+
 server.listen(3000, () => {
   console.log('Server läuft auf http://localhost:3000');
   // Starte die tshark-Überwachung für den Hintergrundverkehr.
